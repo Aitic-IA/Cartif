@@ -861,5 +861,162 @@ render();
 
 })();
 </script>
+ <style id="pulso-distribucion-amplia">
+/* Contenido adaptable al ancho de la ventana */
+main.workspace {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 24px clamp(16px, 2vw, 32px) 32px;
+}
+
+/* Cabecera más compacta */
+.workspace .hero {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
+  margin: 0 0 20px;
+}
+
+.workspace .hero h1 {
+  max-width: none;
+  font-size: clamp(30px, 2.8vw, 44px);
+  letter-spacing: -1.2px;
+  margin: 10px 0;
+}
+
+.workspace .hero p {
+  max-width: 850px;
+  margin: 10px 0;
+}
+
+.workspace .importbox {
+  padding: 20px;
+}
+
+.workspace .tabs {
+  margin-top: 8px;
+  margin-bottom: 18px;
+}
+
+.workspace .controls {
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* Dos columnas como distribución inicial */
+.workspace .comparagrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Tarjetas alineadas y lectura más compacta */
+.comparagrid .comparecard {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.comparagrid .comparecard h2 {
+  font-size: 19px;
+  line-height: 1.3;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+
+.comparagrid .comparebase {
+  margin: 4px 0 14px;
+  line-height: 1.5;
+}
+
+.comparagrid .comparelegend {
+  gap: 8px 16px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.comparagrid .comparison {
+  gap: 16px;
+}
+
+.comparagrid .comparelabel {
+  line-height: 1.4;
+}
+
+.comparagrid .paired {
+  grid-template-columns: 66px minmax(0, 1fr) 60px;
+  gap: 8px;
+}
+
+.comparagrid .comparenote {
+  margin-top: 16px;
+  margin-bottom: 14px;
+  padding-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.comparagrid .comparecard > button {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+/* Portátiles y monitores medianos */
+@media (min-width: 1280px) {
+  .workspace .comparagrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Monitores amplios */
+@media (min-width: 1880px) {
+  .workspace .comparagrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Ventanas pequeñas y tabletas */
+@media (max-width: 950px) {
+  .workspace .hero {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .workspace .hero h1 {
+    font-size: clamp(28px, 4.5vw, 38px);
+  }
+
+  .workspace .importbox {
+    width: 100%;
+  }
+
+  .workspace .controls .base {
+    margin-left: 0;
+  }
+}
+
+/* Móviles */
+@media (max-width: 720px) {
+  main.workspace {
+    padding: 18px 14px 28px;
+  }
+
+  .workspace .comparagrid {
+    grid-template-columns: 1fr;
+  }
+
+  .comparagrid .comparecard {
+    padding: 18px;
+  }
+
+  .workspace .hero h1 {
+    font-size: 30px;
+  }
+
+  .workspace .tabs {
+    gap: 20px;
+  }
+}
+</style>
 </body>
 </html>
