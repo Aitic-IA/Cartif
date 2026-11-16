@@ -104,4 +104,762 @@ function closeMapping(){$('mapModal').classList.remove('open');pending=null;$('f
 $('importBtn').onclick=()=>$('fileInput').click();$('sampleBtn').onclick=()=>download('respuestas_ficticias_60.csv',toCSV(demoRows()),'text/csv;charset=utf-8');$('fileInput').onchange=async e=>{const file=e.target.files[0];if(!file)return;if(file.size>5*1024*1024){toast('El archivo supera 5 MB. Exporta solo las respuestas necesarias.');e.target.value='';return;}try{showMapping(parseCSV(await file.text()),file.name);}catch(err){toast(err.message);e.target.value='';}};
 $('confirmImport').onclick=()=>{try{const mapping=Object.fromEntries(Object.keys(FIELDLABELS).map(k=>[k,Number($('map-'+k).value)]));const review=cleanData(pending.parsed,mapping);if(!review.records.length){$('mapError').textContent='No se ha podido validar ninguna respuesta. '+review.diagnostics.slice(0,3).join(' ');return;}state.rows=review.records;state.review=review;state.demo=/fictici|demo|prueba/i.test(pending.name)||state.rows.every(r=>r.id.startsWith('DEMO-'));state.name=pending.name;state.size='';state.sector='';$('sizeFilter').value='';$('sectorFilter').value='';state.tab='overview';closeMapping();render();toast('Importación completada: '+review.records.length+' válidas, '+review.excluded+' excluidas y '+review.duplicates+' duplicadas.');}catch(err){$('mapError').textContent=err.message;}};
 $('cancelImport').onclick=closeMapping;$('resetBtn').onclick=()=>{state={rows:demoRows(),demo:true,name:'Escenario ficticio',tab:'overview',size:'',sector:'',review:null,slide:0};$('sizeFilter').value='';$('sectorFilter').value='';render();};document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;render();});$('sizeFilter').onchange=e=>{state.size=e.target.value;render();};$('sectorFilter').onchange=e=>{state.sector=e.target.value;render();};$('presentBtn').onclick=startPresentation;$('exitBtn').onclick=endPresentation;$('prevBtn').onclick=()=>moveSlide(-1);$('nextBtn').onclick=()=>moveSlide(1);document.addEventListener('keydown',e=>{if($('mapModal').classList.contains('open')){if(e.key==='Escape')closeMapping();if(e.key==='Tab'){const nodes=[...$('mapModal').querySelectorAll('select,button')],first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}return;}if(!document.body.classList.contains('presenting'))return;if(e.key==='Escape')endPresentation();if(e.key==='ArrowRight'){e.preventDefault();moveSlide(1);}if(e.key==='ArrowLeft'){e.preventDefault();moveSlide(-1);}});render();
-</script></body></html>
+</script>
+<script>
+(function(){
+'use strict';
+
+var refs=[
+['bce','Importancia de la IA · Eurozona / PULSO','impact3',{},[29,33,38],'Eurozona · BCE','Agrupación 29/33/38 del Excel de CARTIF. Su correspondencia con SAFE requiere revisión.'],
+['g7','Importancia de la IA · G7 / PULSO','impact3',{},[8,39,53],'G7 · OCDE','La referencia OCDE estudia empresas que ya utilizan IA.'],
+['bce-p','Importancia de la IA · Pymes de la Eurozona','impact3',{size:'PYME'},[35,31,34],'Eurozona · Pymes','Segmento PYME declarado en la sala; las definiciones de tamaño pueden diferir.'],
+['bce-g','Importancia de la IA · Grandes de la Eurozona','impact3',{size:'GRANDE'},[13,42,45],'Eurozona · Grandes','Comparación contextual con la agrupación del Excel de CARTIF.'],
+['g7-p','Importancia de la IA · Pymes del G7','impact3',{size:'PYME'},[7.380952380952381,33.33333333333333,59.28571428571429],'G7 · OCDE · 50–249 empleados','PULSO usa PYME autodeclarada; OCDE delimita 50–249 empleados.'],
+['g7-g','Importancia de la IA · Grandes del G7','impact3',{size:'GRANDE'},[7.857142857142857,45.23809523809524,46.904761904761905],'G7 · OCDE · 250+ empleados','Referencia de empresas que ya utilizan IA.'],
+['g7-m','Importancia de la IA · Manufactura del G7','impact3',{sector:'MANUFACTURA'},[14.047619047619048,40.714285714285715,45.23809523809524],'G7 · OCDE · Manufactura','PULSO incluye solo las respuestas de manufactura.'],
+['g7-mp','Importancia de la IA · Manufactura y pymes','impact3',{size:'PYME',sector:'MANUFACTURA'},[14.285714285714285,28.57142857142857,57.14285714285714],'G7 · Manufactura · 50–249 empleados','Base PULSO: intersección de PYME y MANUFACTURA.'],
+['g7-mg','Importancia de la IA · Manufactura y grandes','impact3',{size:'GRANDE',sector:'MANUFACTURA'},[13.80952380952381,52.85714285714286,33.33333333333333],'G7 · Manufactura · 250+ empleados','Base PULSO: intersección de GRANDE y MANUFACTURA.'],
+['train','Formación general · G7 / PULSO','training',{},[73.77830750893921,26.22169249106079],'G7 · OCDE','OCDE pregunta por formación para desarrollar/adoptar IA; PULSO, por formación general ya lanzada.'],
+['train-p','Formación general · Pymes del G7','training',{size:'PYME'},[73.33333333333333,26.666666666666668],'G7 · OCDE · 50–249 empleados','La opción «Sí» se contrasta con la formación declarada en OCDE. Planificada y valoración permanecen en «No en marcha».'],
+['train-g','Formación general · Grandes del G7','training',{size:'GRANDE'},[74.22434367541766,25.77565632458234],'G7 · OCDE · 250+ empleados','Referencia del Excel de CARTIF. PULSO no cuenta la formación planificada como impartida.'],
+['train-m','Formación general · Manufactura del G7','training',{sector:'MANUFACTURA'},[71.9047619047619,28.095238095238095],'G7 · OCDE · Manufactura','Base PULSO: respuestas de manufactura.'],
+['strategy','Formación especializada · WEF / PULSO','strategy',{},[77,23],'Global · WEF 2025','WEF: planes de capacitación hasta 2030 para trabajar con IA. PULSO: inclusión de formación especializada en la estrategia.'],
+['future','Expectativas a 2030 · WEF / PULSO','future',{},[86,14],'Global · WEF 2025','WEF: transformación por IA y procesamiento de información. PULSO: no prever baja exposición. Son formulaciones diferentes.']
+].map(function(a){
+ return {
+  id:a[0],title:a[1],metric:a[2],scope:a[3],
+  values:a[4],label:a[5],note:a[6]
+ };
+});
+
+var labels={
+ impact3:[
+  'Poca relevancia / afectación',
+  'Algunas herramientas',
+  'Procesos, áreas o actividad'
+ ],
+ training:['Formación en marcha','No en marcha'],
+ strategy:['Sí','No'],
+ future:['No prevé baja exposición','Prevé baja exposición']
+};
+
+function group(rows,s){
+ return rows.filter(function(r){
+  return (!s.size||r.size===s.size)&&
+         (!s.sector||r.sector===s.sector);
+ });
+}
+
+function groupName(s){
+ return [
+  s.size||'Todos los tamaños',
+  s.sector||'Todos los tipos'
+ ].join(' · ');
+}
+
+function counts(rows,key){
+ if(key==='impact3'){
+  return [
+   rows.filter(function(r){return r.impact===IMPACT[0];}).length,
+   rows.filter(function(r){return r.impact===IMPACT[1];}).length,
+   rows.filter(function(r){
+    return IMPACT.indexOf(r.impact)>=2;
+   }).length
+  ];
+ }
+ var field=key==='training'?'general':
+           key==='strategy'?'specialized':'exposure';
+ var yes=key==='future'?'No':'Sí';
+ var n=rows.filter(function(r){return r[field]===yes;}).length;
+ return [n,rows.length-n];
+}
+
+function model(ref,rows){
+ var rr=group(rows,ref.scope);
+ var c=counts(rr,ref.metric);
+ return {
+  ref:ref,n:rr.length,counts:c,
+  percent:c.map(function(n){
+   return rr.length?n/rr.length*100:null;
+  })
+ };
+}
+
+function relevant(ref,s){
+ return (!s.size||ref.scope.size===s.size)&&
+        (!s.sector||ref.scope.sector===s.sector);
+}
+
+/* Una respuesta válida por ID: primera por fecha. */
+var originalCleaner=cleanData;
+
+function cleanFirst(parsed,mapping){
+ var seen=new Map();
+ var bad=[],warnings=[],excluded=0;
+
+ parsed.rows.forEach(function(row,i){
+  var one=originalCleaner({
+   headers:parsed.headers,
+   rows:[row]
+  },mapping);
+
+  if(!one.records.length){
+   excluded++;
+   bad.push(
+    'Fila '+(i+2)+
+    ': revisa ID y categorías de las respuestas.'
+   );
+   return;
+  }
+
+  var r=one.records[0];
+  r._row=i;
+  if(!seen.has(r.id))seen.set(r.id,[]);
+  seen.get(r.id).push(r);
+ });
+
+ var rows=[],dup=0;
+
+ seen.forEach(function(items){
+  dup+=items.length-1;
+
+  if(items.length>1&&items.some(function(r){
+   return r.time===null;
+  })){
+   warnings.push(
+    'En IDs repetidos con fechas incompletas se ha '+
+    'conservado la primera fila válida del CSV.'
+   );
+  }else{
+   items.sort(function(a,b){
+    return a.time-b.time||a._row-b._row;
+   });
+  }
+
+  var first=Object.assign({},items[0]);
+  delete first._row;
+  rows.push(first);
+ });
+
+ return {
+  records:rows,input:parsed.rows.length,
+  excluded:excluded,duplicates:dup,
+  diagnostics:bad,
+  warnings:Array.from(new Set(warnings))
+ };
+}
+
+var api={
+ refs:refs,labels:labels,group:group,
+ model:model,counts:counts,
+ relevant:relevant,cleanFirst:cleanFirst
+};
+
+globalThis.PulsoComparativas=api;
+
+if(typeof document==='undefined')return;
+if(document.getElementById('cartif-comparativas-v2'))return;
+
+var css=document.createElement('style');
+css.id='cartif-comparativas-v2';
+css.textContent=`
+.workspace{max-width:1600px}
+.comparagrid{
+ display:grid;
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:20px
+}
+.comparecard{
+ padding:24px;background:white;
+ border:1px solid var(--line);
+ border-radius:20px;min-width:0
+}
+.comparecard h2{
+ font-size:20px;line-height:1.25;margin:10px 0
+}
+.comparehead{
+ display:flex;justify-content:space-between;
+ align-items:center;gap:12px
+}
+.comparebase{
+ color:var(--muted);font-size:12px;
+ margin:10px 0 18px
+}
+.comparison{display:grid;gap:18px}
+.comparelabel{
+ font-size:13px;font-weight:650;margin-bottom:6px
+}
+.paired{
+ display:grid;
+ grid-template-columns:70px minmax(0,1fr) 65px;
+ gap:8px;align-items:center;
+ font-size:12px;margin:5px 0
+}
+.paired .track{
+ height:18px;border-radius:4px;
+ background:repeating-linear-gradient(
+  90deg,#edf0e8 0%,#edf0e8 24.8%,#dce2d9 25%
+ )
+}
+.paired .fill{background:#b84046!important}
+.paired.ref .fill{background:#5182a2!important}
+.paired strong{
+ text-align:right;font-variant-numeric:tabular-nums
+}
+.comparenote{
+ font-size:12px;color:var(--muted);line-height:1.5;
+ border-top:1px solid var(--line);
+ margin-top:18px;padding-top:12px
+}
+.comparelegend{
+ font-size:12px;display:flex;gap:18px;
+ flex-wrap:wrap;color:var(--muted);margin-bottom:15px
+}
+.comparelegend b{font-weight:650}
+.comparelegend b:first-child{color:#b84046}
+.comparelegend b:last-child{color:#3d718e}
+.comparelead{
+ margin:0 0 20px;color:var(--muted);font-size:14px
+}
+.overviewextra{margin-top:18px}
+.slidemain .comparison{
+ max-width:1250px;width:100%;gap:20px
+}
+.slidemain .paired{
+ grid-template-columns:100px minmax(0,1fr) 110px;
+ font-size:clamp(14px,1.4vw,22px)
+}
+.slidemain .paired .track{
+ height:clamp(18px,2.2vh,32px)
+}
+.slidemain .comparelabel{
+ font-size:clamp(16px,1.8vw,26px)
+}
+.slidemain .comparebase,
+.slidemain .comparenote,
+.slidemain .comparelegend{
+ font-size:clamp(12px,1.1vw,17px)
+}
+.slidemain .barrow .fill{background:#b84046!important}
+.slidemain .barrow .track{height:28px}
+.slidemain h1{
+ font-size:clamp(28px,3.4vw,52px);max-width:1300px
+}
+.slidemain .comparecard{border:0;padding:0}
+.slidemain{padding:3vh 6vw}
+.controls .base{margin-left:auto}
+#selectionPresent{font-size:13px}
+.card details{margin-top:16px}
+.card summary{cursor:pointer;font-weight:650}
+.card details li{margin-bottom:10px}
+.overviewextra .fill{background:#b84046}
+.comparecard>button{margin-top:14px}
+.printslide{
+ height:auto!important;min-height:175mm;
+ break-inside:avoid
+}
+.printslide .paired{font-size:12pt}
+.printslide .track,.printslide .fill{
+ print-color-adjust:exact;
+ -webkit-print-color-adjust:exact
+}
+.printslide .comparison{gap:10px}
+.printslide .comparenote{font-size:9pt}
+.printslide .comparebase,
+.printslide .comparelegend{font-size:10pt}
+@media(max-width:950px){
+ .comparagrid{grid-template-columns:1fr}
+ .comparecard{padding:18px}
+ .paired{
+  grid-template-columns:65px minmax(0,1fr) 58px
+ }
+ .controls .base{margin-left:0}
+}
+@media print{
+ .printslide .barrow{margin:10px 0}
+ .printslide .comparelabel{font-size:12pt}
+ .printslide h1{font-size:25pt}
+ .printslide footer{position:static}
+}
+`;
+document.head.appendChild(css);
+
+var oldOverview=overview;
+overview=function(rows){
+ var m=metrics(rows);
+ return oldOverview(rows)+
+  '<article class="card overviewextra">'+
+  '<h2>Formación especializada en la estrategia</h2>'+
+  '<p class="sub">La cuarta gráfica de la sala completa '+
+  'la visión de uso, formación y expectativas.</p>'+
+  bars(m.special,m.n)+'</article>';
+};
+
+cleanData=cleanFirst;
+PulsoEngine.cleanData=cleanFirst;
+
+var selected={size:'',sector:''};
+var activeDeck=[];
+var deckLabel='',deckDemo=false;
+
+function percent(v){
+ return v===null?'Sin respuestas':
+  v.toLocaleString('es-ES',{maximumFractionDigits:1})+' %';
+}
+
+function paired(label,p,r){
+ return '<div class="comparelabel">'+esc(label)+'</div>'+
+  '<div class="paired"><span>PULSO</span>'+
+  '<div class="track"><div class="fill" style="width:'+
+  (p===null?0:p)+'%"></div></div>'+
+  '<strong>'+percent(p)+'</strong></div>'+
+  '<div class="paired ref"><span>Referencia</span>'+
+  '<div class="track"><div class="fill" style="width:'+
+  r+'%"></div></div><strong>'+percent(r)+'</strong></div>';
+}
+
+function compareBody(ref,all){
+ var m=model(ref,all);
+
+ return '<div class="comparebase">'+
+  esc(groupName(ref.scope))+' · PULSO: n='+m.n+
+  (m.n>0&&m.n<5?' · Base pequeña':'')+'</div>'+
+  '<div class="comparelegend"><b>PULSO · sala</b><b>'+
+  esc(ref.label)+'</b></div>'+
+  (m.n?'':'<p class="notice">Sin respuestas de este grupo. '+
+   'La referencia permanece visible.</p>')+
+  '<div class="comparison">'+
+  labels[ref.metric].map(function(l,i){
+   return '<div>'+paired(l,m.percent[i],ref.values[i])+'</div>';
+  }).join('')+'</div>'+
+  '<div class="comparenote">'+esc(ref.note)+
+  ' Referencias numéricas facilitadas por CARTIF en el '+
+  'Excel final; PULSO se calcula con el CSV cargado. '+
+  'Comparación contextual, sin atribuir diferencias a causas.'+
+  '</div>';
+}
+
+function comparisons(){
+ var list=refs.filter(function(r){
+  return relevant(r,selected);
+ });
+
+ return '<p class="comparelead">'+
+  'PULSO se recalcula con el CSV. Las referencias '+
+  'internacionales son fijas. Los filtros seleccionan las '+
+  'comparativas que corresponden al grupo indicado; '+
+  'cada tarjeta muestra su propia base.</p>'+
+  '<div class="comparagrid">'+
+  (list.length?list.map(function(r){
+   return '<article class="comparecard">'+
+    '<div class="comparehead"><span class="chip">'+
+    esc(r.label)+'</span></div><h2>'+esc(r.title)+'</h2>'+
+    compareBody(r,state.rows)+
+    '<button data-chart="'+r.id+'">Ver en pantalla</button>'+
+    '</article>';
+  }).join(''):
+   '<article class="card"><h2>No hay una referencia '+
+   'equivalente para esta selección</h2><p>Puedes ver '+
+   'sus resultados en «Resultados de la sala». No '+
+   'aplicamos una referencia de otro grupo.</p></article>')+
+  '</div>';
+}
+
+function detailSources(){
+ return `
+ <details>
+  <summary>Fuentes y criterios de comparación</summary>
+  <ul>
+   <li><b>Eurozona · BCE:</b>
+    se mantiene la agrupación de tres niveles del Excel
+    de CARTIF. En la fuente SAFE aparecen 27 % sin uso,
+    33 % uso infrecuente, 31 % moderado y 7 % significativo.
+    El resto no se convierte en una categoría «muy alta».
+    La agrupación global 29/33/38 del Excel debe confirmarse
+    con Javier.
+   </li>
+   <li><b>G7 · OCDE/BCG/INSEAD:</b>
+    encuesta 2022–2023, 840 empresas que ya usan IA,
+    de manufactura y TIC. Sus pequeñas empresas tienen
+    50–249 empleados; no representan automáticamente
+    a todas las pymes.
+   </li>
+   <li><b>WEF 2025:</b>
+    77 % prevé capacitar para trabajar con IA;
+    86 % espera transformación por IA y procesamiento
+    de información. Son contexto internacional:
+    las preguntas y las poblaciones no son idénticas
+    a PULSO.
+   </li>
+   <li><b>PULSO:</b>
+    porcentajes calculados sobre respuestas válidas únicas
+    de cada grupo. «Planificada» y «En valoración» no
+    cuentan como formación ya lanzada.
+    «No prevé baja exposición» no equivale por sí solo
+    a declarar transformación total.
+   </li>
+   <li><b>Duplicados:</b>
+    se conserva la primera respuesta válida por fecha;
+    si faltan fechas se usa el orden del CSV.
+    Los códigos de acceso se validan en Google Forms;
+    el importador no sustituye ese control.
+   </li>
+  </ul>
+  <p>
+   <a href="https://www.ecb.europa.eu/stats/ecb_surveys/safe/html/ecb.safe202602.en.html"
+      target="_blank" rel="noopener">Fuente BCE</a> ·
+   <a href="https://www.oecd.org/en/publications/the-adoption-of-artificial-intelligence-in-firms_f9ef33c3-en/full-report/key-findings-from-the-2022-23-oecd-bcg-insead-survey-of-ai-adopting-enterprises_311220ab.html"
+      target="_blank" rel="noopener">Fuente OCDE</a> ·
+   <a href="https://www.weforum.org/publications/the-future-of-jobs-report-2025/4-workforce-strategies"
+      target="_blank" rel="noopener">Fuente WEF</a>
+  </p>
+ </details>`;
+}
+
+prepare=function(){
+ var r=state.review;
+
+ return '<div class="split"><article class="card">'+
+  '<h2>Presentación para la sala</h2>'+
+  '<p>La presentación global recorre las cuatro preguntas '+
+  'y las comparativas por tamaño y manufactura. Siempre '+
+  'utiliza todo el CSV, aunque hayas aplicado filtros al panel.</p>'+
+  '<div class="actions">'+
+  '<button id="globalStart" class="primary">'+
+  'Presentación global</button>'+
+  '<button id="globalPrint">Guardar global en PDF</button></div>'+
+  '<p>La presentación de la selección muestra sus cuatro '+
+  'preguntas y las referencias que coinciden con ese grupo.</p>'+
+  '<div class="actions">'+
+  '<button id="filteredStart">Presentar selección</button>'+
+  '<button id="filteredPrint">'+
+  'Guardar selección en PDF</button></div>'+
+  detailSources()+'</article><article class="card">'+
+  '<h2>Control de la importación</h2>'+
+  (r?'<table><tbody>'+
+   '<tr><th>Filas de entrada</th><td>'+r.input+'</td></tr>'+
+   '<tr><th>Respuestas válidas únicas</th><td>'+
+   r.records.length+'</td></tr>'+
+   '<tr><th>Duplicados retirados</th><td>'+
+   r.duplicates+'</td></tr>'+
+   '<tr><th>Filas excluidas</th><td>'+r.excluded+'</td></tr>'+
+   '</tbody></table><div class="report">'+
+   esc(r.diagnostics.concat(r.warnings).join('\n')||
+    'Sin incidencias de importación.')+'</div>':
+   '<p>Ejemplo ficticio integrado. Importa el CSV para '+
+   'comprobar los resultados de la sala.</p>')+
+  '<p class="muted">El CSV sustituye los datos anteriores. '+
+  'La web no está conectada en directo al formulario: '+
+  'al cargar una exportación nueva, recalcula todos los '+
+  'gráficos. Los datos se conservan en esta pestaña '+
+  'mientras permanezca abierta.</p>'+
+  '<p class="muted">Los datos del Excel de Javier son '+
+  'ejemplos de trabajo; las cifras de PULSO no se copian '+
+  'del Excel.</p></article></div>';
+};
+
+function rawSlides(rows,scope){
+ var m=metrics(rows);
+ var base='<div class="comparebase">'+
+  esc(groupName(scope))+' · n='+m.n+'</div>';
+
+ return [
+  {
+   title:'El pulso de esta sala',
+   body:'<div class="big">'+m.n+'</div>'+
+    '<p class="bigsub">respuestas válidas de participantes '+
+    'con ID único.</p>'+base+'<p class="muted">'+
+    m.sizes.map(function(x){
+     return x.count+' '+esc(x.label);
+    }).join(' · ')+'</p>',
+   base:m.n
+  },
+  {
+   title:'Si mañana desapareciera la IA…',
+   body:bars(m.impact,m.n)+base,base:m.n
+  },
+  {
+   title:'¿Hay formación general en marcha?',
+   body:bars(m.general,m.n)+base,base:m.n
+  },
+  {
+   title:'¿La formación especializada está en la estrategia?',
+   body:bars(m.special,m.n)+base,base:m.n
+  },
+  {
+   title:'¿Prevemos baja exposición a la IA hasta 2030?',
+   body:bars(m.exposure,m.n)+base+
+    '<p class="muted">Se conserva el sentido exacto de '+
+    'la pregunta: «No» significa que no se prevé una '+
+    'exposición baja.</p>',
+   base:m.n
+  }
+ ];
+}
+
+function makeDeck(all,scope,global){
+ var rows=global?all:group(all,scope);
+ var raw=rawSlides(rows,global?{}:scope);
+ var chosen=refs.filter(function(r){
+  return global||relevant(r,scope);
+ });
+ var deck=[raw[0],raw[1]];
+
+ function addMetric(metric){
+  chosen.filter(function(r){
+   return r.metric===metric;
+  }).forEach(function(r){
+   deck.push({
+    title:r.title,
+    body:compareBody(r,all),
+    base:model(r,all).n
+   });
+  });
+ }
+
+ addMetric('impact3');
+ deck.push(raw[2]);
+ addMetric('training');
+ deck.push(raw[3]);
+ addMetric('strategy');
+ deck.push(raw[4]);
+ addMetric('future');
+
+ return deck;
+}
+
+function build(global){
+ var all=state.rows.map(function(r){
+  return Object.assign({},r);
+ });
+ deckLabel=global?'Presentación global':groupName(selected);
+ deckDemo=state.demo;
+
+ return makeDeck(
+  all,Object.assign({},selected),global
+ );
+}
+
+function openDeck(global){
+ if(!(global?state.rows:scoped()).length){
+  toast('No hay respuestas en este grupo.');
+  return;
+ }
+
+ activeDeck=build(global);
+ state.slide=0;
+ document.body.classList.add('presenting');
+ renderSlide();
+ $('exitBtn').focus();
+}
+
+startPresentation=function(){
+ openDeck(true);
+};
+
+renderSlide=function(){
+ if(!activeDeck.length)return;
+
+ state.slide=Math.max(
+  0,Math.min(activeDeck.length-1,state.slide)
+ );
+
+ var s=activeDeck[state.slide];
+
+ $('slideBody').innerHTML=
+  '<div class="eyebrow">'+
+  'PULSO · AITIC en colaboración con CARTIF</div>'+
+  '<h1>'+esc(s.title)+'</h1>'+s.body;
+
+ $('slideBadge').textContent=
+  deckDemo?'EJEMPLO FICTICIO':'CSV IMPORTADO';
+
+ $('slideMeta').textContent=
+  deckLabel+' · Base de esta diapositiva: '+s.base+
+  (s.base===0?' · Sin respuestas':
+   s.base<5?' · Base pequeña':'');
+
+ $('slideIndex').textContent=
+  (state.slide+1)+' / '+activeDeck.length;
+
+ $('prevBtn').disabled=state.slide===0;
+ $('nextBtn').disabled=state.slide===activeDeck.length-1;
+};
+
+moveSlide=function(d){
+ if(!activeDeck.length)return;
+ state.slide=Math.max(
+  0,Math.min(activeDeck.length-1,state.slide+d)
+ );
+ renderSlide();
+};
+
+function printNew(global){
+ if(!(global?state.rows:scoped()).length){
+  toast('No hay respuestas que imprimir.');
+  return;
+ }
+
+ var deck=build(global);
+
+ $('printdeck').innerHTML=deck.map(function(s){
+  return '<section class="printslide">'+
+   '<div class="eyebrow">AITIC × CARTIF · '+
+   (deckDemo?'EJEMPLO FICTICIO':'CSV IMPORTADO')+'</div>'+
+   '<h1>'+esc(s.title)+'</h1>'+s.body+
+   '<footer>'+esc(deckLabel)+' · Base: '+s.base+
+   '</footer></section>';
+ }).join('');
+
+ $('printdeck').hidden=false;
+ window.print();
+ $('printdeck').hidden=true;
+}
+
+printDeck=function(){
+ printNew(true);
+};
+
+render=function(){
+ selected={
+  size:state.size,
+  sector:state.sector
+ };
+
+ if(state.tab!=='overview'&&
+    state.tab!=='compare'&&
+    state.tab!=='prepare'){
+  state.tab='overview';
+ }
+
+ var rows=scoped();
+ var warn=[];
+
+ $('modeBadge').textContent=
+  state.demo?'Datos ficticios':'CSV importado';
+
+ $('datasetName').textContent=
+  state.name+' · '+state.rows.length+' respuestas válidas';
+
+ $('baseLabel').textContent=
+  rows.length+' respuestas en esta selección';
+
+ if(state.demo){
+  warn.push('Ejemplo ficticio. No son resultados del congreso.');
+ }
+
+ if(rows.length>0&&rows.length<5){
+  warn.push('Base pequeña (n='+rows.length+').');
+ }
+
+ if(state.review&&state.review.excluded){
+  warn.push(
+   state.review.excluded+
+   ' filas excluidas: revisar la importación.'
+  );
+ }
+
+ $('warning').textContent=warn.join(' ');
+
+ document.querySelectorAll('.tab').forEach(function(b){
+  b.setAttribute(
+   'aria-selected',
+   String(b.dataset.tab===state.tab)
+  );
+ });
+
+ $('panel').innerHTML=
+  state.tab==='compare'?comparisons():
+  state.tab==='prepare'?prepare():
+  rows.length?overview(rows):
+  '<div class="card empty">No hay respuestas de este grupo.</div>';
+
+ $('presentBtn').disabled=!state.rows.length;
+ $('selectionPresent').disabled=!rows.length;
+
+ if(state.tab==='compare'){
+  document.querySelectorAll('[data-chart]').forEach(function(b){
+   b.onclick=function(){
+    var ref=refs.find(function(r){
+     return r.id===b.dataset.chart;
+    });
+
+    activeDeck=[{
+     title:ref.title,
+     body:compareBody(ref,state.rows),
+     base:model(ref,state.rows).n
+    }];
+
+    deckLabel=groupName(ref.scope);
+    deckDemo=state.demo;
+    state.slide=0;
+
+    document.body.classList.add('presenting');
+    renderSlide();
+    $('exitBtn').focus();
+   };
+  });
+ }
+
+ if(state.tab==='prepare'){
+  $('globalStart').onclick=function(){openDeck(true);};
+  $('filteredStart').onclick=function(){openDeck(false);};
+  $('globalPrint').onclick=function(){printNew(true);};
+  $('filteredPrint').onclick=function(){printNew(false);};
+ }
+};
+
+document.querySelector('.tabs').innerHTML=
+ '<button class="tab" data-tab="overview" aria-selected="true">'+
+ 'Resultados de la sala</button>'+
+ '<button class="tab" data-tab="compare" aria-selected="false">'+
+ 'Comparativas internacionales</button>'+
+ '<button class="tab" data-tab="prepare" aria-selected="false">'+
+ 'Preparar presentación</button>';
+
+document.querySelectorAll('.tab').forEach(function(b){
+ b.onclick=function(){
+  state.tab=b.dataset.tab;
+  render();
+ };
+});
+
+var btn=document.createElement('button');
+btn.id='selectionPresent';
+btn.textContent='Presentar selección ↗';
+btn.onclick=function(){openDeck(false);};
+
+document.querySelector('.controls').insertBefore(
+ btn,$('baseLabel')
+);
+
+$('presentBtn').textContent='Presentación global ↗';
+$('presentBtn').onclick=function(){openDeck(true);};
+
+$('prevBtn').onclick=function(){moveSlide(-1);};
+$('nextBtn').onclick=function(){moveSlide(1);};
+
+document.addEventListener('keydown',function(e){
+ if(!document.body.classList.contains('presenting')||
+    $('mapModal').classList.contains('open'))return;
+
+ if(e.key==='Home'){
+  e.preventDefault();
+  state.slide=0;
+  renderSlide();
+ }
+
+ if(e.key==='End'){
+  e.preventDefault();
+  state.slide=activeDeck.length-1;
+  renderSlide();
+ }
+});
+
+api.makeDeck=makeDeck;
+render();
+
+})();
+</script>
+</body>
+</html>
