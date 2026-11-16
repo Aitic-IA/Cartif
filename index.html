@@ -1018,5 +1018,1166 @@ main.workspace {
   }
 }
 </style>
+ <script>
+(function(){
+'use strict';
+
+var A=globalThis.PulsoComparativas;
+if(!A)throw Error('Falta la actualización de comparativas anterior.');
+
+var C={
+ pulso:'#2476ed',
+ eu:'#dc5359',
+ g7:'#249361',
+ wef:'#8959ce'
+};
+
+var BLUE=['#dceaff','#a8ceff','#6aa8f5','#327ee7','#164eaa'];
+var TRAIN=['#2476ed','#6f9df2','#c2d6f7','#e5ebf4'];
+
+function pc(x){
+ return x===null?'—':
+  x.toLocaleString('es-ES',{maximumFractionDigits:1})+' %';
+}
+
+function rate(n,total){
+ return total?n/total*100:null;
+}
+
+function ref(id){
+ return A.refs.find(function(r){return r.id===id;});
+}
+
+function safeScope(s){
+ return A.group(s.rows,s.scope);
+}
+
+function series(key,label,values,n){
+ return {
+  key:key,label:label,color:C[key],
+  values:values,n:n
+ };
+}
+
+function triple(s,scope){
+ var rows=A.group(s.rows,scope);
+ var ids=scope.size==='PYME'?['bce-p','g7-p']:
+         scope.size==='GRANDE'?['bce-g','g7-g']:
+         ['bce','g7'];
+
+ var counts=A.counts(rows,'impact3');
+
+ return {
+  n:rows.length,
+  counts:counts,
+  scope:scope,
+  series:[
+   series(
+    'pulso','PULSO',
+    counts.map(function(v){return rate(v,rows.length);}),
+    rows.length
+   ),
+   series('eu','Eurozona · BCE',ref(ids[0]).values,null),
+   series('g7','G7 · OCDE',ref(ids[1]).values,null)
+  ]
+ };
+}
+
+function legend(list){
+ return '<div class="v3legend">'+list.map(function(s){
+  return '<span><i style="background:'+s.color+'"></i>'+
+   esc(s.label)+'</span>';
+ }).join('')+'</div>';
+}
+
+function columns(model){
+ var cats=[
+  'Poca relevancia',
+  'Algunas herramientas',
+  'Procesos / uso crítico'
+ ];
+
+ return legend(model.series)+
+  '<div class="v3columns" role="img" '+
+  'aria-label="Tres distribuciones en escala de cero a cien por ciento">'+
+  cats.map(function(label,i){
+   return '<div class="v3colgroup"><div class="v3colplot">'+
+    model.series.map(function(s){
+     var v=s.values[i];
+     return '<div class="v3col" title="'+
+      esc(s.label+': '+pc(v))+'">'+
+      '<div class="v3colspace">'+
+      '<b style="bottom:'+(v===null?0:v)+'%">'+pc(v)+'</b>'+
+      '<span style="height:'+(v===null?0:v)+
+      '%;background:'+s.color+'"></span>'+
+      '</div></div>';
+    }).join('')+
+    '</div><div class="v3cat">'+esc(label)+'</div></div>';
+  }).join('')+
+  '</div><div class="v3axisnote">'+
+  'Escala común: 0–100 % · porcentajes visibles sobre cada columna.'+
+  '</div>';
+}
+
+function dots(model){
+ var cats=[
+  'Poca relevancia / afectación',
+  'Algunas herramientas',
+  'Procesos / uso crítico'
+ ];
+
+ return legend(model.series)+
+  '<div class="v3dots">'+cats.map(function(label,i){
+   return '<div class="v3dotgroup"><b>'+esc(label)+'</b>'+
+    model.series.map(function(s){
+     var v=s.values[i];
+     return '<div class="v3dotrow"><span>'+
+      esc(s.label.split(' · ')[0])+'</span>'+
+      '<div class="v3rail">'+
+      (v===null?'':'<i style="left:'+v+
+       '%;background:'+s.color+'"></i>')+
+      '</div><strong>'+pc(v)+'</strong></div>';
+    }).join('')+'</div>';
+  }).join('')+
+  '</div><div class="v3axisnote">'+
+  'Cada línea recorre del 0 % al 100 %. '+
+  '«—» indica ausencia de respuestas.</div>';
+}
+
+function ring(parts,colors,center,sub,label){
+ var offset=0;
+
+ var arcs=parts.map(function(v,i){
+  var n=v===null?0:v;
+  var tag='<circle cx="80" cy="80" r="62" fill="none" '+
+   'stroke="'+colors[i]+'" stroke-width="15" pathLength="100" '+
+   'stroke-dasharray="'+n+' '+(100-n)+'" '+
+   'stroke-dashoffset="'+(-offset)+'" '+
+   'transform="rotate(-90 80 80)"/>';
+
+  offset+=n;
+  return tag;
+ }).join('');
+
+ return '<svg class="v3ring" viewBox="0 0 160 160" '+
+  'role="img" aria-label="'+esc(label)+'">'+
+  '<title>'+esc(label)+'</title>'+
+  '<circle cx="80" cy="80" r="62" fill="none" '+
+  'stroke="#edf0f4" stroke-width="15"/>'+arcs+
+  '<text x="80" y="79" text-anchor="middle" '+
+  'class="v3ringnum">'+esc(center)+'</text>'+
+  '<text x="80" y="99" text-anchor="middle" '+
+  'class="v3ringsub">'+esc(sub)+'</text></svg>';
+}
+
+function dist(items,n,colors){
+ return '<div class="v3distribution" role="img" aria-label="'+
+  esc(items.map(function(x){
+   return x.label+': '+pc(rate(x.count,n));
+  }).join('; '))+'">'+
+  items.map(function(x,i){
+   var p=rate(x.count,n);
+   return '<span style="width:'+(p===null?0:p)+
+    '%;background:'+colors[i]+';color:'+
+    (i<2?'#153454':'white')+'">'+
+    (p!==null&&p>=12?pc(p):'')+'</span>';
+  }).join('')+
+  '</div><div class="v3distlegend">'+
+  items.map(function(x,i){
+   return '<div><i style="background:'+colors[i]+'"></i>'+
+    '<span>'+esc(x.label)+'</span>'+
+    '<strong>'+pc(rate(x.count,n))+'</strong>'+
+    '<small>'+x.count+' de '+n+'</small></div>';
+  }).join('')+'</div>';
+}
+
+function rawImpact(rows){
+ var m=metrics(rows);
+ return dist(m.impact,m.n,BLUE);
+}
+
+function rawGeneral(rows){
+ var m=metrics(rows);
+ var parts=m.general.map(function(x){
+  return rate(x.count,m.n);
+ });
+
+ return '<div class="v3donutrow">'+
+  ring(
+   parts,TRAIN,String(m.n),'respuestas',
+   'Estado de la formación general'
+  )+
+  '<div class="v3keylist">'+
+  m.general.map(function(x,i){
+   return '<div><i style="background:'+TRAIN[i]+'"></i>'+
+    '<span>'+esc(x.label)+'</span>'+
+    '<strong>'+pc(rate(x.count,m.n))+'</strong>'+
+    '<small>'+x.count+' de '+m.n+'</small></div>';
+  }).join('')+'</div></div>';
+}
+
+function rawStrategy(rows){
+ var m=metrics(rows);
+ var v=rate(m.specialized,m.n);
+
+ return '<div class="v3donutrow">'+
+  ring(
+   [v,v===null?null:100-v],
+   [C.pulso,'#e6edf8'],
+   pc(v),'incluye formación',
+   'Formación especializada en la estrategia: '+pc(v)
+  )+
+  '<div class="v3binary"><div>'+
+  '<strong>'+m.specialized+'</strong>'+
+  '<span>Sí, está en la estrategia</span></div>'+
+  '<div><strong>'+(m.n-m.specialized)+'</strong>'+
+  '<span>No está en la estrategia</span></div></div></div>';
+}
+
+function rawFuture(rows){
+ var m=metrics(rows);
+ var v=rate(m.n-m.lowExposure,m.n);
+
+ return '<div class="v3horizon">'+
+  '<span class="v3year">2030</span>'+
+  '<div class="v3futurepct">'+pc(v)+'</div>'+
+  '<p>No prevé una exposición baja a la IA</p>'+
+  '<div class="v3meter"><i style="width:'+
+  (v===null?0:v)+'%;background:'+C.pulso+'"></i></div>'+
+  '<div class="v3futurefoot"><span>'+
+  (m.n-m.lowExposure)+' de '+m.n+' respondió «No»</span>'+
+  '<span>'+m.lowExposure+' de '+m.n+
+  ' respondió «Sí»</span></div></div>';
+}
+
+function pairModel(r,s){
+ var m=A.model(r,s.rows);
+ var key=r.id.indexOf('bce')===0?'eu':
+  r.id.indexOf('g7')===0||r.id.indexOf('train')===0?'g7':'wef';
+
+ return {
+  n:m.n,
+  counts:m.counts,
+  series:[
+   series('pulso','PULSO',m.percent,m.n),
+   series(key,r.label,r.values,null)
+  ]
+ };
+}
+
+function pairRings(r,s){
+ var m=pairModel(r,s);
+ var label=r.metric==='strategy'?
+  'Formación prevista':'Formación en marcha';
+
+ return legend(m.series)+
+  '<div class="v3tworings">'+m.series.map(function(x){
+   var v=x.values[0];
+
+   return '<div>'+
+    ring(
+     [v,v===null?null:100-v],
+     [x.color,'#edf0f4'],
+     pc(v),
+     x.key==='pulso'?'PULSO':
+      x.key==='g7'?'G7 · OCDE':'WEF',
+     x.label+': '+pc(v)
+    )+
+    '<p>'+esc(label)+'</p>'+
+    (x.key==='pulso'?
+     '<small>'+m.counts[0]+' de '+m.n+' respuestas</small>':
+     '<small>Referencia internacional</small>')+
+    '</div>';
+  }).join('')+'</div>';
+}
+
+function futurePair(r,s){
+ var m=pairModel(r,s);
+
+ return legend(m.series)+
+  '<div class="v3futurepair">'+
+  m.series.map(function(x){
+   var v=x.values[0];
+
+   return '<div style="--series:'+x.color+'">'+
+    '<div class="v3bigpct">'+pc(v)+'</div>'+
+    '<div class="v3meter"><i style="width:'+
+    (v===null?0:v)+'%;background:'+x.color+'"></i></div>'+
+    '<p>'+esc(x.key==='pulso'?
+     'No prevé baja exposición':
+     'Espera transformación por IA')+'</p></div>';
+  }).join('')+
+  '</div><div class="v3axisnote">'+
+  'Horizonte 2030. Se conservan las formulaciones '+
+  'originales de cada encuesta.</div>';
+}
+
+function nativeContext(s){
+ var m=metrics(s.rows);
+ var e=[
+  ['Sin uso',27],
+  ['Uso infrecuente',33],
+  ['Uso moderado',31],
+  ['Uso significativo',7]
+ ];
+
+ return '<div class="v3native"><div>'+
+  '<h3>PULSO · si desapareciera la IA</h3>'+
+  dist(m.impact,m.n,BLUE)+
+  '</div><div><h3>Eurozona · intensidad de uso</h3>'+
+  '<div class="v3distribution">'+
+  e.map(function(x,i){
+   return '<span style="width:'+x[1]+
+    '%;background:'+
+    ['#f7dadb','#eea6aa','#e4767c','#dc5359'][i]+
+    ';color:#621a24">'+(x[1]>=12?x[1]+' %':'')+'</span>';
+  }).join('')+
+  '</div><div class="v3distlegend">'+
+  e.map(function(x){
+   return '<div><span>'+x[0]+'</span>'+
+    '<strong>'+x[1]+' %</strong></div>';
+  }).join('')+
+  '</div><p class="v3axisnote">'+
+  'Las cifras publicadas suman 98 %. No se imputa '+
+  'el resto a uso «muy alto».</p></div></div>';
+}
+
+function tripleNote(scope){
+ return 'Agrupación de tres niveles del Excel de CARTIF. '+
+  'PULSO pregunta por afectación al desaparecer la IA; '+
+  'BCE, por intensidad de uso; OCDE, por importancia en '+
+  'empresas que ya usan IA. Comparación contextual. '+
+  (!scope.size?
+   'La agrupación global BCE 29/33/38 queda pendiente de confirmar.':
+   scope.size==='PYME'?
+   'OCDE delimita 50–249 empleados; PULSO usa PYME autodeclarada.':
+   'OCDE delimita empresas de 250 o más empleados.');
+}
+
+function descriptors(s){
+ var out=[];
+ var scope=s.scope;
+
+ [
+  {
+   id:'triple-all',scope:{},
+   title:'La sala, la Eurozona y el G7',feature:true
+  },
+  {
+   id:'triple-p',scope:{size:'PYME'},
+   title:'Tres miradas a las pymes'
+  },
+  {
+   id:'triple-g',scope:{size:'GRANDE'},
+   title:'Tres miradas a las grandes empresas'
+  }
+ ].forEach(function(x){
+  if(!A.relevant({scope:x.scope},scope))return;
+  var m=triple(s,x.scope);
+
+  out.push({
+   id:x.id,title:x.title,
+   kicker:'PULSO / EUROZONA / G7',
+   n:m.n,scope:x.scope,feature:!!x.feature,
+   body:x.feature?columns(m):dots(m),
+   note:tripleNote(x.scope)
+  });
+ });
+
+ A.refs.filter(function(r){
+  return ![
+   'bce','g7','bce-p','bce-g','g7-p','g7-g'
+  ].includes(r.id)&&A.relevant(r,scope);
+ }).forEach(function(r){
+  var m=pairModel(r,s);
+
+  out.push({
+   id:r.id,title:r.title,kicker:r.label,
+   n:m.n,scope:r.scope,
+   body:r.metric==='impact3'?dots(m):
+    r.metric==='future'?futurePair(r,s):pairRings(r,s),
+   note:r.note+
+    ' Valores internacionales del Excel final de CARTIF; '+
+    'PULSO se recalcula con el CSV.'
+  });
+ });
+
+ if(!scope.size&&!scope.sector){
+  out.push({
+   id:'native',
+   title:'Dos preguntas, dos escalas',
+   kicker:'PULSO / EUROZONA · ESCALAS ORIGINALES',
+   n:s.rows.length,scope:{},wide:true,
+   body:nativeContext(s),
+   note:'La pregunta de afectación de PULSO y la pregunta '+
+    'de intensidad del BCE se presentan por separado: '+
+    'sus categorías no son equivalentes.'
+  });
+ }
+
+ return out;
+}
+
+function notes(text){
+ return '<details class="v3notes">'+
+  '<summary>Fuente y lectura del gráfico</summary>'+
+  '<p>'+esc(text)+'</p></details>';
+}
+
+function card(d,click){
+ var scopeName=[
+  d.scope.size||'Todos los tamaños',
+  d.scope.sector||'Todos los tipos'
+ ].join(' · ');
+
+ return '<article class="v3card'+
+  (d.feature?' v3feature':'')+
+  (d.wide?' v3wide':'')+'">'+
+  '<div class="v3kicker">'+esc(d.kicker)+'</div>'+
+  '<h2>'+esc(d.title)+'</h2>'+
+  '<div class="v3base">'+esc(scopeName)+
+  ' · PULSO: n='+d.n+
+  (d.n===0?' · Sin respuestas':
+   d.n<5?' · Base pequeña':'')+'</div>'+
+  d.body+notes(d.note)+
+  (click?'<button data-v3-chart="'+d.id+
+   '">Ampliar gráfico ↗</button>':'')+
+  '</article>';
+}
+
+function overviewV3(s){
+ var rows=safeScope(s);
+ var m=metrics(rows);
+
+ function stat(label,value,sub){
+  return '<article class="stat">'+
+   '<div class="label">'+label+'</div>'+
+   '<div class="num">'+value+'</div>'+
+   '<small>'+sub+'</small></article>';
+ }
+
+ return '<div class="stats">'+
+  stat('Respuestas de la sala',m.n,'Participantes con ID único')+
+  stat(
+   'Afectación de procesos o mayor',
+   pc(rate(m.affected,m.n)),m.affected+' de '+m.n
+  )+
+  stat(
+   'Formación general en marcha',
+   pc(rate(m.trained,m.n)),m.trained+' de '+m.n
+  )+
+  stat(
+   'Formación especializada prevista',
+   pc(rate(m.specialized,m.n)),m.specialized+' de '+m.n
+  )+
+  '</div><div class="v3rawgrid">'+
+  [
+   {
+    title:'Si mañana desapareciera la IA…',
+    kicker:'01 · DEPENDENCIA DECLARADA',
+    body:rawImpact(rows),
+    note:'Las cinco respuestas se conservan. Cada tramo '+
+     'representa su porcentaje sobre el grupo.'
+   },
+   {
+    title:'¿Estamos preparando a las personas?',
+    kicker:'02 · FORMACIÓN GENERAL',
+    body:rawGeneral(rows),
+    note:'Planificada y en valoración se muestran '+
+     'separadas de la formación ya lanzada.'
+   },
+   {
+    title:'¿La formación está en la estrategia?',
+    kicker:'03 · FORMACIÓN ESPECIALIZADA',
+    body:rawStrategy(rows),
+    note:'Se mide inclusión en la estrategia, no calidad '+
+     'ni ejecución de esa formación.'
+   },
+   {
+    title:'El horizonte de la sala',
+    kicker:'04 · EXPECTATIVAS A 2030',
+    body:rawFuture(rows),
+    note:'«No» significa que no se prevé una exposición '+
+     'baja; no equivale automáticamente a declarar '+
+     'una transformación total.'
+   }
+  ].map(function(d){
+   d.n=m.n;
+   d.scope=s.scope;
+   return card(d,false);
+  }).join('')+
+  '</div>'+insightCards(rows);
+}
+
+function rawDeck(s){
+ var rows=safeScope(s);
+ var n=rows.length;
+
+ return [
+  {
+   title:'El pulso de esta sala',
+   body:'<div class="v3opening">'+
+    '<div class="v3openingnum">'+n+'</div><div>'+
+    '<h2>Respuestas que se convierten en conversación.</h2>'+
+    '<p>Uso de IA. Formación. Estrategia. Horizonte 2030.</p>'+
+    legend([
+     series('pulso','PULSO · sala',[],n),
+     series('eu','Eurozona · BCE',[],null),
+     series('g7','G7 · OCDE',[],null),
+     series('wef','Global · WEF',[],null)
+    ])+'</div></div>',
+   n:n
+  },
+  {
+   title:'Si mañana desapareciera la IA…',
+   body:rawImpact(rows),n:n
+  },
+  {
+   title:'¿Hay formación general en marcha?',
+   body:rawGeneral(rows),n:n
+  },
+  {
+   title:'¿La formación especializada está en la estrategia?',
+   body:rawStrategy(rows),n:n
+  },
+  {
+   title:'¿Cómo mira esta sala a 2030?',
+   body:rawFuture(rows),n:n
+  }
+ ];
+}
+
+function deck(s){
+ var raw=rawDeck(s);
+ var all=descriptors(s);
+
+ function slide(id){
+  var d=all.find(function(x){return x.id===id;});
+  return d?{
+   title:d.title,body:d.body+notes(d.note),n:d.n
+  }:null;
+ }
+
+ function twin(ids,title){
+  var ds=ids.map(function(id){
+   return all.find(function(x){return x.id===id;});
+  }).filter(Boolean);
+
+  return ds.length?{
+   title:title,
+   body:'<div class="v3twoslides">'+
+    ds.map(function(d){return card(d,false);}).join('')+
+    '</div>',
+   n:null
+  }:null;
+ }
+
+ return [
+  raw[0],
+  raw[1],
+  slide('native'),
+  slide('triple-all'),
+  twin(['triple-p','triple-g'],'El tamaño cambia la fotografía'),
+  slide('g7-m'),
+  twin(['g7-mp','g7-mg'],'Manufactura: pymes y grandes'),
+  raw[2],
+  slide('train'),
+  twin(['train-p','train-g'],'Formación general según tamaño'),
+  slide('train-m'),
+  raw[3],
+  slide('strategy'),
+  raw[4],
+  slide('future')
+ ].filter(Boolean);
+}
+
+var api={
+ colors:C,triple:triple,pairModel:pairModel,
+ descriptors:descriptors,deck:deck,
+ overview:overviewV3,ring:ring
+};
+
+globalThis.PulsoVisualV3=api;
+
+if(typeof document==='undefined')return;
+if(document.getElementById('pulso-visual-v3'))return;
+
+var css=document.createElement('style');
+css.id='pulso-visual-v3';
+css.textContent=`
+.v3card{
+ min-width:0;background:#fff;border:1px solid #dce3e9;
+ border-radius:20px;padding:22px;display:flex;
+ flex-direction:column;box-shadow:0 6px 20px #16304b04
+}
+.v3card h2{font-size:19px;line-height:1.28;margin:8px 0}
+.v3kicker{
+ font-size:10px;font-weight:750;
+ letter-spacing:.1em;color:#4c6682
+}
+.v3base{
+ font-size:11px;color:#60718a;
+ margin:0 0 18px;line-height:1.5
+}
+.v3card>button{
+ align-self:flex-start;margin-top:auto;font-size:12px
+}
+.v3legend{
+ display:flex;gap:8px 15px;flex-wrap:wrap;
+ font-size:11px;font-weight:650;margin:0 0 15px
+}
+.v3legend span{display:inline-flex;align-items:center;gap:6px}
+.v3legend i,.v3distlegend i,.v3keylist i{
+ display:inline-block;width:9px;height:9px;
+ border-radius:3px;flex-shrink:0
+}
+.v3gallery .v3feature{
+ grid-column:span 2;
+ background:linear-gradient(125deg,#142a43,#183955);
+ color:#f7faff;border-color:#183955
+}
+.v3feature h2{font-size:clamp(22px,2vw,32px)}
+.v3feature .v3base,.v3feature .v3kicker,
+.v3feature .v3axisnote{color:#bacfe5}
+.v3feature button{
+ background:#244a69;color:white;border-color:#496681
+}
+.v3feature .v3notes{border-color:#496681;color:#c2d4e7}
+.v3wide{grid-column:span 2}
+.v3rawgrid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:18px
+}
+.v3columns{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:18px;padding-top:25px
+}
+.v3colgroup{min-width:0}
+.v3colplot{
+ display:flex;justify-content:center;gap:9px;height:170px;
+ border-bottom:1px solid #aebdce;
+ background:repeating-linear-gradient(
+  to top,transparent 0,transparent calc(50% - 1px),
+  #9cb3ca30 50%
+ )
+}
+.v3col{flex:1;max-width:44px;height:100%}
+.v3colspace{position:relative;width:100%;height:100%}
+.v3colspace>span{
+ position:absolute;bottom:0;left:0;right:0;
+ border-radius:6px 6px 0 0;transform-origin:bottom;
+ animation:v3grow .55s ease-out both
+}
+.v3colspace>b{
+ position:absolute;left:50%;transform:translateX(-50%);
+ font-size:11px;font-weight:750;
+ white-space:nowrap;margin-bottom:5px
+}
+.v3cat{
+ font-size:11px;text-align:center;
+ margin-top:10px;line-height:1.4
+}
+.v3axisnote{
+ font-size:10px;color:#65758b;
+ line-height:1.5;margin-top:12px
+}
+.v3dots{display:grid;gap:16px}
+.v3dotgroup>b{font-size:12px;display:block;margin-bottom:7px}
+.v3dotrow{
+ display:grid;grid-template-columns:65px minmax(0,1fr) 52px;
+ gap:10px;align-items:center;font-size:10px;margin:8px 0
+}
+.v3dotrow strong{text-align:right;white-space:nowrap}
+.v3rail{
+ height:2px;background:#dbe4ed;
+ position:relative;margin:5px 7px
+}
+.v3rail:before,.v3rail:after{
+ content:"";position:absolute;top:-3px;
+ width:1px;height:8px;background:#b3c2d3
+}
+.v3rail:before{left:0}
+.v3rail:after{right:0}
+.v3rail i{
+ position:absolute;top:50%;width:11px;height:11px;
+ border-radius:50%;transform:translate(-50%,-50%);
+ box-shadow:0 0 0 3px white
+}
+.v3ring{width:100%;max-width:170px;display:block;margin:auto}
+.v3ringnum{
+ fill:currentColor;font-size:25px;font-weight:750;
+ font-family:system-ui,sans-serif
+}
+.v3ringsub{
+ fill:#65758b;font-size:10px;font-family:system-ui,sans-serif
+}
+.v3tworings{
+ display:grid;grid-template-columns:1fr 1fr;
+ gap:14px;margin:8px 0
+}
+.v3tworings>div{text-align:center;min-width:0}
+.v3tworings p{font-size:12px;font-weight:650;margin:4px 0}
+.v3tworings small{font-size:10px;color:#65758b}
+.v3donutrow{
+ display:grid;
+ grid-template-columns:minmax(100px,180px) minmax(0,1fr);
+ gap:24px;align-items:center;flex:1
+}
+.v3keylist{display:grid;gap:15px}
+.v3keylist>div{
+ display:grid;grid-template-columns:10px 1fr auto;
+ gap:5px 9px;align-items:center;font-size:12px
+}
+.v3keylist small{
+ grid-column:2/4;font-size:10px;color:#65758b
+}
+.v3distribution{
+ display:flex;width:100%;height:48px;border-radius:12px;
+ overflow:hidden;background:#edf0f4;margin:15px 0 20px
+}
+.v3distribution>span{
+ display:flex;align-items:center;justify-content:center;
+ white-space:nowrap;font-weight:750;font-size:13px;
+ overflow:hidden
+}
+.v3distlegend{display:grid;gap:10px}
+.v3distlegend>div{
+ display:grid;
+ grid-template-columns:10px minmax(0,1fr) 65px 70px;
+ gap:8px;align-items:center;font-size:12px
+}
+.v3distlegend strong{text-align:right}
+.v3distlegend small{
+ font-size:10px;text-align:right;color:#65758b
+}
+.v3native .v3distlegend>div{
+ grid-template-columns:minmax(0,1fr) auto
+}
+.v3native .v3distlegend>div:has(i){
+ grid-template-columns:10px minmax(0,1fr) 60px 65px
+}
+.v3native{
+ display:grid;grid-template-columns:1fr 1fr;gap:24px
+}
+.v3native h3{font-size:14px;margin:8px 0}
+.v3binary{
+ display:grid;grid-template-columns:1fr 1fr;gap:18px
+}
+.v3binary strong{
+ display:block;font-size:38px;color:#2476ed
+}
+.v3binary span{
+ display:block;font-size:12px;line-height:1.5
+}
+.v3horizon{position:relative;overflow:hidden;padding:4px 0}
+.v3year{
+ position:absolute;right:0;top:0;font-weight:800;
+ font-size:105px;line-height:1;color:#2476ed0b;
+ pointer-events:none
+}
+.v3futurepct{
+ font-size:clamp(42px,4vw,64px);line-height:1.1;
+ color:#2476ed;font-weight:750;letter-spacing:-2px;
+ position:relative
+}
+.v3horizon>p{
+ font-size:15px;margin:10px 0 24px;position:relative
+}
+.v3meter{
+ height:10px;background:#e8edf5;border-radius:20px;
+ overflow:hidden
+}
+.v3meter i{display:block;height:100%;border-radius:20px}
+.v3futurefoot{
+ display:flex;justify-content:space-between;gap:15px;
+ flex-wrap:wrap;font-size:11px;color:#65758b;margin-top:12px
+}
+.v3futurepair{
+ display:grid;grid-template-columns:1fr 1fr;
+ gap:20px;margin:15px 0
+}
+.v3futurepair>div{min-width:0}
+.v3bigpct{
+ font-size:clamp(32px,3.2vw,52px);letter-spacing:-1.5px;
+ font-weight:750;color:var(--series);line-height:1.3
+}
+.v3futurepair p{font-size:12px;line-height:1.5}
+.v3notes{
+ margin:20px 0 15px;border-top:1px solid #e1e7ee;
+ padding-top:12px;font-size:11px;color:#64758b;line-height:1.6
+}
+.v3notes summary{cursor:pointer;font-weight:600}
+.v3notes p{margin:8px 0}
+.v3sharedlegend{
+ display:flex;justify-content:space-between;gap:15px;
+ align-items:center;flex-wrap:wrap;margin:0 0 18px
+}
+.v3sharedlegend>p{font-size:12px;color:#65758b;margin:0}
+.v3sharedlegend .v3legend{margin:0}
+.v3opening{
+ display:grid;grid-template-columns:auto 1fr;
+ gap:45px;align-items:center
+}
+.v3openingnum{
+ font-size:clamp(100px,16vw,220px);color:#2476ed;
+ font-weight:750;line-height:1;letter-spacing:-8px
+}
+.v3opening h2{font-size:clamp(24px,3vw,42px);line-height:1.2}
+.v3opening p{font-size:20px;color:#65758b}
+.v3twoslides{
+ display:grid;grid-template-columns:1fr 1fr;gap:25px
+}
+.slidemain.v3stage .v3legend{
+ font-size:clamp(12px,1.2vw,19px)
+}
+.slidemain.v3stage .v3columns{max-width:1350px;gap:50px}
+.slidemain.v3stage .v3colplot{
+ height:clamp(150px,30vh,340px);gap:16px
+}
+.slidemain.v3stage .v3col{max-width:80px}
+.slidemain.v3stage .v3colspace>b{
+ font-size:clamp(14px,1.7vw,24px)
+}
+.slidemain.v3stage .v3cat{
+ font-size:clamp(14px,1.6vw,23px)
+}
+.slidemain.v3stage .v3donutrow{
+ grid-template-columns:minmax(170px,320px) 1fr;
+ max-width:1150px
+}
+.slidemain.v3stage .v3ring{max-width:280px}
+.slidemain.v3stage .v3keylist>div{
+ font-size:clamp(14px,1.7vw,24px)
+}
+.slidemain.v3stage .v3keylist small{font-size:14px}
+.slidemain.v3stage .v3distlegend>div{
+ font-size:clamp(14px,1.6vw,22px);
+ grid-template-columns:12px 1fr 100px 100px
+}
+.slidemain.v3stage .v3distlegend small{font-size:14px}
+.slidemain.v3stage .v3distribution{height:70px}
+.slidemain.v3stage .v3distribution>span{font-size:20px}
+.slidemain.v3stage .v3dotgroup>b{font-size:18px}
+.slidemain.v3stage .v3dotrow{
+ font-size:16px;grid-template-columns:90px 1fr 80px;
+ margin:13px 0
+}
+.slidemain.v3stage .v3axisnote{font-size:13px}
+.slidemain.v3stage .v3twoslides .v3card{padding:20px}
+.slidemain.v3stage .v3twoslides .v3ring{max-width:160px}
+.slidemain.v3stage .v3twoslides .v3legend{font-size:13px}
+.slidemain.v3stage .v3base{font-size:12px}
+.slidemain.v3stage .v3native .v3distlegend>div{
+ grid-template-columns:1fr auto;font-size:13px
+}
+.slidemain.v3stage .v3native .v3distlegend>div:has(i){
+ grid-template-columns:10px 1fr 60px 70px
+}
+.slidemain.v3stage .v3native .v3distribution>span{
+ font-size:14px
+}
+.slidemain.v3stage .v3binary strong{font-size:70px}
+.slidemain.v3stage .v3binary span{font-size:20px}
+.slidemain.v3stage .v3futurepct{
+ font-size:clamp(70px,10vw,140px)
+}
+.slidemain.v3stage .v3futurepair{max-width:1250px;gap:60px}
+.slidemain.v3stage .v3bigpct{
+ font-size:clamp(65px,9vw,130px)
+}
+.slidemain.v3stage .v3futurepair p{font-size:20px}
+.slidemain.v3stage .v3futurefoot{font-size:17px}
+.slidemain.v3stage .v3notes{font-size:13px}
+.v3rawgrid+.insightbox{margin-top:18px}
+
+@keyframes v3grow{
+ from{transform:scaleY(0)}
+ to{transform:scaleY(1)}
+}
+@media(prefers-reduced-motion:reduce){
+ .v3colspace>span{animation:none}
+}
+@media(max-width:1050px){
+ .v3rawgrid{grid-template-columns:1fr}
+ .v3native{grid-template-columns:1fr}
+ .v3twoslides{grid-template-columns:1fr}
+ .v3opening{grid-template-columns:1fr;gap:15px}
+ .v3openingnum{font-size:100px}
+ .slidemain.v3stage .v3native .v3distribution{height:35px}
+}
+@media(max-width:720px){
+ .v3gallery .v3feature,.v3wide{grid-column:span 1}
+ .v3card{padding:18px}
+ .v3donutrow{grid-template-columns:110px 1fr;gap:12px}
+ .v3binary{gap:10px}
+ .v3binary strong{font-size:30px}
+ .v3distlegend>div{grid-template-columns:10px 1fr 60px}
+ .v3distlegend small{grid-column:2/4;text-align:left}
+ .v3colplot{gap:5px}
+ .v3columns{gap:12px}
+ .v3colspace>b{font-size:10px}
+}
+@media print{
+ .v3colspace>span{animation:none}
+ .v3card,.v3distribution,.v3meter,.v3colspace>span{
+  print-color-adjust:exact;
+  -webkit-print-color-adjust:exact
+ }
+ .v3notes summary{display:none}
+ .printslide .v3columns{max-width:240mm}
+ .printslide .v3colplot{height:50mm}
+ .printslide .v3ring{max-width:45mm}
+ .printslide .v3twoslides{grid-template-columns:1fr 1fr}
+ .printslide .v3native{grid-template-columns:1fr 1fr}
+ .printslide .v3notes{font-size:8pt}
+ .printslide .v3openingnum{font-size:100pt}
+ .printslide .v3futurepct,
+ .printslide .v3bigpct{font-size:55pt}
+}
+`;
+
+document.head.appendChild(css);
+
+var oldRender=render;
+var active=[];
+var snapshot=null;
+var lastFocus=null;
+
+function snap(global){
+ return {
+  rows:state.rows.map(function(r){
+   return Object.assign({},r);
+  }),
+  scope:global?{}:{
+   size:state.size,
+   sector:state.sector
+  },
+  demo:state.demo,
+  global:global
+ };
+}
+
+function bind(){
+ $('presentBtn').onclick=function(){open(true);};
+
+ if($('selectionPresent')){
+  $('selectionPresent').onclick=function(){open(false);};
+ }
+
+ [
+  'globalStart','filteredStart','globalPrint','filteredPrint'
+ ].forEach(function(id){
+  var e=$(id);
+  if(!e)return;
+
+  e.onclick=function(){
+   if(id.indexOf('Print')>=0){
+    printVisual(id==='globalPrint');
+   }else{
+    open(id==='globalStart');
+   }
+  };
+ });
+
+ document.querySelectorAll('[data-v3-chart]').forEach(function(b){
+  b.onclick=function(){
+   snapshot=snap(true);
+   snapshot.displayMode='Gráfico ampliado';
+
+   var d=descriptors(snapshot).find(function(x){
+    return x.id===b.dataset.v3Chart;
+   });
+
+   active=[{
+    title:d.title,
+    body:d.body+notes(d.note),
+    n:d.n
+   }];
+
+   lastFocus=b;
+   show();
+  };
+ });
+}
+
+render=function(){
+ oldRender();
+
+ var s=snap(false);
+
+ if(state.tab==='overview'){
+  $('panel').innerHTML=safeScope(s).length?
+   overviewV3(s):
+   '<div class="card empty">Sin respuestas en esta selección.</div>';
+ }
+
+ if(state.tab==='compare'){
+  var ds=descriptors(s);
+
+  $('panel').innerHTML=
+   '<div class="v3sharedlegend"><p>'+
+   'Una identidad visual por fuente. '+
+   'Cada gráfico mantiene su propia base.</p>'+
+   legend([
+    series('pulso','PULSO',[],null),
+    series('eu','Eurozona · BCE',[],null),
+    series('g7','G7 · OCDE',[],null),
+    series('wef','Global · WEF',[],null)
+   ])+
+   '</div><div class="comparagrid v3gallery">'+
+   (ds.length?
+    ds.map(function(d){return card(d,true);}).join(''):
+    '<article class="v3card"><h2>No hay una referencia '+
+    'equivalente para este grupo</h2><p>Sus resultados '+
+    'están disponibles en «Resultados de la sala».</p></article>')+
+   '</div>';
+ }
+
+ bind();
+};
+
+function show(){
+ state.slide=0;
+ document.body.classList.add('presenting');
+ $('slideBody').classList.add('v3stage');
+ renderSlide();
+ $('exitBtn').focus();
+}
+
+function open(global){
+ snapshot=snap(global);
+
+ if(!safeScope(snapshot).length){
+  toast('No hay respuestas para presentar.');
+  return;
+ }
+
+ active=deck(snapshot);
+ lastFocus=document.activeElement;
+ show();
+}
+
+startPresentation=function(){
+ open(true);
+};
+
+renderSlide=function(){
+ if(!active.length)return;
+
+ state.slide=Math.max(
+  0,Math.min(active.length-1,state.slide)
+ );
+
+ var d=active[state.slide];
+
+ $('slideBody').innerHTML=
+  '<div class="eyebrow">'+
+  'PULSO · AITIC en colaboración con CARTIF</div>'+
+  '<h1>'+esc(d.title)+'</h1>'+d.body;
+
+ $('slideBadge').textContent=
+  snapshot.demo?'EJEMPLO FICTICIO':'CSV IMPORTADO';
+
+ $('slideMeta').textContent=
+  (snapshot.displayMode||
+   (snapshot.global?'Presentación global':'Selección'))+
+  ' · '+
+  (d.n===null?
+   'Cada panel indica su propia base':
+   'Base de esta diapositiva: '+d.n)+
+  (d.n!==null&&d.n<5?' · Base pequeña':'');
+
+ $('slideIndex').textContent=
+  (state.slide+1)+' / '+active.length;
+
+ $('prevBtn').disabled=state.slide===0;
+ $('nextBtn').disabled=state.slide===active.length-1;
+};
+
+moveSlide=function(delta){
+ if(!active.length)return;
+
+ state.slide=Math.max(
+  0,Math.min(active.length-1,state.slide+delta)
+ );
+
+ renderSlide();
+};
+
+function close(){
+ document.body.classList.remove('presenting');
+ $('slideBody').classList.remove('v3stage');
+
+ if(lastFocus&&lastFocus.focus){
+  lastFocus.focus();
+ }
+}
+
+$('exitBtn').onclick=close;
+$('prevBtn').onclick=function(){moveSlide(-1);};
+$('nextBtn').onclick=function(){moveSlide(1);};
+
+function printVisual(global){
+ var s=snap(global);
+
+ if(!safeScope(s).length){
+  toast('No hay respuestas que imprimir.');
+  return;
+ }
+
+ $('printdeck').innerHTML=deck(s).map(function(d){
+  return '<section class="printslide">'+
+   '<div class="eyebrow">AITIC × CARTIF · '+
+   (s.demo?'EJEMPLO FICTICIO':'CSV IMPORTADO')+'</div>'+
+   '<h1>'+esc(d.title)+'</h1>'+
+   d.body.replace(/<details /g,'<details open ')+
+   '<footer>'+
+   (global?'Presentación global':'Selección')+' · '+
+   (d.n===null?'Bases indicadas en cada panel':'n='+d.n)+
+   '</footer></section>';
+ }).join('');
+
+ $('printdeck').hidden=false;
+ window.print();
+ $('printdeck').hidden=true;
+}
+
+printDeck=function(){
+ printVisual(true);
+};
+
+document.addEventListener('keydown',function(e){
+ if(!document.body.classList.contains('presenting')||
+    $('mapModal').classList.contains('open'))return;
+
+ if(![
+  'ArrowLeft','ArrowRight','Home','End','Escape'
+ ].includes(e.key))return;
+
+ e.preventDefault();
+ e.stopImmediatePropagation();
+
+ if(e.key==='Escape')close();
+ if(e.key==='ArrowRight')moveSlide(1);
+ if(e.key==='ArrowLeft')moveSlide(-1);
+
+ if(e.key==='Home'){
+  state.slide=0;
+  renderSlide();
+ }
+
+ if(e.key==='End'){
+  state.slide=active.length-1;
+  renderSlide();
+ }
+},true);
+
+api.open=open;
+api.print=printVisual;
+
+render();
+
+})();
+</script>
 </body>
 </html>
