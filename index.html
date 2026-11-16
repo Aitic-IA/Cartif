@@ -2179,5 +2179,179 @@ render();
 
 })();
 </script>
+ <style id="pulso-barras-legibles">
+.v3rail.v3bartrack {
+  height: 14px;
+  margin: 3px 0;
+  background: #edf1f7;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.v3rail.v3bartrack::before,
+.v3rail.v3bartrack::after {
+  display: none;
+}
+
+.v3rail.v3bartrack i {
+  position: absolute;
+  left: 0 !important;
+  top: 0;
+  height: 100%;
+  border-radius: 4px;
+  transform: none;
+  box-shadow: none;
+}
+
+.v3dotrow {
+  grid-template-columns: 68px minmax(0, 1fr) 62px;
+  font-size: 12px;
+  min-height: 20px;
+  gap: 10px;
+  margin: 7px 0;
+}
+
+.v3dotgroup > b {
+  font-size: 13px;
+  margin-bottom: 9px;
+}
+
+.v3dotrow strong {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.slidemain.v3stage .v3rail.v3bartrack {
+  height: 22px;
+}
+
+.slidemain.v3stage .v3dotrow {
+  grid-template-columns: 95px minmax(0, 1fr) 90px;
+  font-size: 18px;
+  margin: 12px 0;
+}
+
+.slidemain.v3stage .v3dotrow strong {
+  font-size: 18px;
+}
+
+.v3card > button.v3rawzoom {
+  align-self: flex-start;
+  margin-top: 18px;
+}
+
+@media print {
+  .v3rail.v3bartrack,
+  .v3rail.v3bartrack i {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  var visual = globalThis.PulsoVisualV3;
+
+  if (!visual || globalThis.__pulsoBarrasLegibles) return;
+  globalThis.__pulsoBarrasLegibles = true;
+
+  var rawTitles = [
+    'Si mañana desapareciera la IA…',
+    '¿Hay formación general en marcha?',
+    '¿La formación especializada está en la estrategia?',
+    '¿Cómo mira esta sala a 2030?'
+  ];
+
+  function refreshCharts() {
+    /* La posición del punto pasa a ser la longitud de la barra. */
+    document.querySelectorAll('.v3rail').forEach(function (track) {
+      track.classList.add('v3bartrack');
+
+      var marker = track.querySelector('i');
+
+      if (!marker || marker.dataset.barConverted === 'yes') return;
+
+      var value = parseFloat(marker.style.left);
+
+      if (!Number.isFinite(value)) return;
+
+      marker.style.width = Math.max(0, Math.min(100, value)) + '%';
+      marker.style.left = '0';
+      marker.dataset.barConverted = 'yes';
+    });
+
+    document.querySelectorAll('.v3dots').forEach(function (chart) {
+      var note = chart.nextElementSibling;
+
+      if (!note || !note.classList.contains('v3axisnote')) return;
+
+      var text =
+        'Escala común: 0–100 %. El porcentaje aparece al final. ' +
+        '«—» indica ausencia de respuestas.';
+
+      if (note.textContent !== text) note.textContent = text;
+    });
+
+    /* Acceso a pantalla ampliada desde los resultados de la sala. */
+    document.querySelectorAll('.v3rawgrid > .v3card')
+      .forEach(function (card, index) {
+        if (card.querySelector('[data-v3-raw]')) return;
+        if (!rawTitles[index]) return;
+
+        var button = document.createElement('button');
+
+        button.className = 'v3rawzoom';
+        button.dataset.v3Raw = String(index);
+        button.textContent = 'Ampliar gráfico ↗';
+
+        button.onclick = function () {
+          var selection = {
+            rows: state.rows.map(function (row) {
+              return Object.assign({}, row);
+            }),
+            scope: {
+              size: state.size,
+              sector: state.sector
+            },
+            demo: state.demo,
+            global: false
+          };
+
+          var slides = visual.deck(selection);
+          var position = slides.findIndex(function (slide) {
+            return slide.title === rawTitles[index];
+          });
+
+          if (position < 0) return;
+
+          visual.open(false);
+          moveSlide(position);
+        };
+
+        card.appendChild(button);
+      });
+  }
+
+  /* También se aplica al cambiar filtros, importar y presentar. */
+  var observer = new MutationObserver(refreshCharts);
+
+  ['panel', 'slideBody', 'printdeck'].forEach(function (id) {
+    var element = document.getElementById(id);
+
+    if (element) {
+      observer.observe(element, {
+        childList: true,
+        subtree: true
+      });
+    }
+  });
+
+  window.addEventListener('beforeprint', refreshCharts);
+  refreshCharts();
+})();
+</script>
 </body>
 </html>
